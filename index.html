@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunflower</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Arial", sans-serif;
+            user-select: none;
+        }
+        body {
+            background: #fff8e1;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 主页界面 */
+        .home-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff8e1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .home-title {
+            font-size: 3rem;
+            color: #ffb300;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.15);
+        }
+        /* 主界面瓜子显示 */
+        .home-seed {
+            font-size: 1.6rem;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 2.5rem;
+        }
+        .start-btn {
+            padding: 1rem 2.5rem;
+            font-size: 1.5rem;
+            background: #ffb300;
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        .start-btn:hover {
+            transform: scale(1.05);
+            background: #ffa000;
+        }
+
+        /* 游戏界面 */
+        .game-screen {
+            display: none;
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: #fffef0;
+        }
+        .info-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            background: #222;
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            font-weight: bold;
+        }
+        .timer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.8rem;
+            color: #f00;
+            font-weight: bold;
+            display: none;
+            z-index:10;
+        }
+
+        .sunflower {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            z-index: 5;
+        }
+        .sunflower::before {
+            content: "🌻";
+            font-size: 4rem;
+        }
+
+        .player {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #4CAF50;
+            border-radius: 50%;
+            display: none;
+            z-index: 6;
+        }
+
+        .message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: #ff3333;
+            font-weight: bold;
+            display: none;
+            z-index: 50;
+        }
+
+        /* 兑换弹窗 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 320px;
+        }
+        .redeem-input {
+            width: 100%;
+            padding: 0.8rem;
+            margin: 1rem 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .redeem-btn {
+            padding: 0.8rem 2rem;
+            background: #ffb300;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- 主页 -->
+    <div class="home-screen" id="homeScreen">
+        <h1 class="home-title">Sunflower</h1>
+        <div class="home-seed" id="homeSeed">瓜子: 0</div>
+        <button class="start-btn" id="startBtn">开始游戏</button>
+    </div>
+
+    <!-- 游戏画布 -->
+    <div class="game-screen" id="gameScreen">
+        <div class="info-btn" id="infoBtn">i</div>
+        <div class="timer" id="timer">60</div>
+        <div class="sunflower" id="sunflower"></div>
+        <div class="player" id="player"></div>
+        <div class="message" id="message"></div>
+    </div>
+
+    <!-- 兑换弹窗 -->
+    <div class="modal" id="infoModal">
+        <div class="modal-content">
+            <h3>兑换码入口</h3>
+            <input type="text" class="redeem-input" id="redeemInput" placeholder="输入神秘兑换码">
+            <button class="redeem-btn" id="redeemBtn">立即兑换</button>
+            <p style="margin-top:1rem;color:#888;font-size:0.9rem;">点击空白关闭</p>
+        </div>
+    </div>
+
+    <script>
+        // 封闭安全游戏状态，防篡改
+        const GameState = (() => {
+            let seeds = 0;
+            let clickCount = 0;
+            let isChasing = false;
+            let timerInterval = null;
+
+            return Object.freeze({
+                addSeeds(n) { 
+                    seeds = Math.max(0, seeds + n); 
+                    updateHomeSeedUI(); 
+                },
+                getSeeds() { return seeds; },
+                addClick() { return ++clickCount; },
+                resetClick() { clickCount = 0; },
+                startChase() { isChasing = true; },
+                isChasing() { return isChasing; },
+                resetAll() {
+                    clickCount = 0;
+                    isChasing = false;
+                    clearInterval(timerInterval);
+                },
+                startCountdown(onTick, onEnd) {
+                    let time = 60;
+                    clearInterval(timerInterval);
+                    timerInterval = setInterval(() => {
+                        time--;
+                        onTick(time);
+                        if(time <= 0) {
+                            clearInterval(timerInterval);
+                            onEnd();
+                        }
+                    }, 1000);
+                }
+            });
+        })();
+
+        // DOM元素
+        const homeScreen = document.getElementById("homeScreen");
+        const gameScreen = document.getElementById("gameScreen");
+        const startBtn = document.getElementById("startBtn");
+        const homeSeed = document.getElementById("homeSeed");
+        const sunflower = document.getElementById("sunflower");
+        const player = document.getElementById("player");
+        const message = document.getElementById("message");
+        const timer = document.getElementById("timer");
+        const infoBtn = document.getElementById("infoBtn");
+        const infoModal = document.getElementById("infoModal");
+        const redeemInput = document.getElementById("redeemInput");
+        const redeemBtn = document.getElementById("redeemBtn");
+
+        // 更新主界面瓜子显示
+        function updateHomeSeedUI() {
+            homeSeed.textContent = `瓜子: ${GameState.getSeeds()}`;
+        }
+
+        // 有效兑换码：VIP666 VIP888 VIP999
+        function checkCode(input) {
+            const c = input.trim().toUpperCase();
+            return ["VIP666","VIP888","VIP999"].includes(c);
+        }
+
+        // 向日葵初始居中
+        function initSunflowerPos() {
+            sunflower.style.left = "50%";
+            sunflower.style.top = "50%";
+            sunflower.style.transform = "translate(-50%, -50%)";
+        }
+
+        // 激怒开始追击
+        function triggerChase() {
+            GameState.startChase();
+            message.textContent = "你激怒我了";
+            message.style.display = "block";
+            player.style.display = "block";
+            timer.style.display = "block";
+
+            // 60秒倒计时
+            GameState.startCountdown(
+                (t) => { timer.textContent = t; },
+                () => winGame()
+            );
+
+            // 向日葵精准追玩家
+            const chaseSpeed = 3;
+            const chaseLoop = setInterval(() => {
+                if(!GameState.isChasing()) { clearInterval(chaseLoop); return; }
+
+                const sRect = sunflower.getBoundingClientRect();
+                const pRect = player.getBoundingClientRect();
+
+                let sx = sRect.left + sRect.width/2;
+                let sy = sRect.top + sRect.height/2;
+                let px = pRect.left + pRect.width/2;
+                let py = pRect.top + pRect.height/2;
+
+                let dx = px - sx;
+                let dy = py - sy;
+                let dist = Math.hypot(dx, dy);
+
+                if(dist > 10) {
+                    sunflower.style.left = sRect.left + (dx/dist)*chaseSpeed + "px";
+                    sunflower.style.top = sRect.top + (dy/dist)*chaseSpeed + "px";
+                    sunflower.style.transform = "none";
+                }
+
+                // 碰撞检测
+                if(dist < 60) {
+                    loseGame();
+                    clearInterval(chaseLoop);
+                }
+            }, 30);
+        }
+
+        function winGame() {
+            GameState.addSeeds(2);
+            message.textContent = "游戏胜利！获得2颗瓜子";
+            endGame();
+        }
+        function loseGame() {
+            message.textContent = "被向日葵抓到了！";
+            endGame();
+        }
+        function endGame() {
+            GameState.resetAll();
+            setTimeout(()=>{
+                message.style.display = "none";
+                player.style.display = "none";
+                timer.style.display = "none";
+                initSunflowerPos();
+                homeScreen.style.display = "flex";
+                gameScreen.style.display = "none";
+            }, 2000);
+        }
+
+        // 开始游戏
+        startBtn.onclick = () => {
+            homeScreen.style.display = "none";
+            gameScreen.style.display = "block";
+            initSunflowerPos();
+            GameState.resetClick();
+        };
+
+        // 点击向日葵计数
+        sunflower.onclick = () => {
+            if(GameState.isChasing()) return;
+            let cnt = GameState.addClick();
+            if(cnt >= 20) {
+                triggerChase();
+            } else {
+                sunflower.style.transform = "translate(-50%, -50%) scale(1.1)";
+                setTimeout(()=>{
+                    sunflower.style.transform = "translate(-50%, -50%) scale(1)";
+                },200);
+            }
+        };
+
+        // 玩家跟随鼠标移动
+        document.onmousemove = (e) => {
+            if(!GameState.isChasing()) return;
+            player.style.left = (e.clientX - 20) + "px";
+            player.style.top = (e.clientY - 20) + "px";
+        };
+
+        // 兑换弹窗
+        infoBtn.onclick = () => {
+            infoModal.style.display = "flex";
+            redeemInput.value = "";
+        };
+        infoModal.onclick = (e) => {
+            if(e.target === infoModal) infoModal.style.display = "none";
+        };
+        redeemBtn.onclick = () => {
+            if(checkCode(redeemInput.value)){
+                GameState.addSeeds(10);
+                alert("兑换成功！获得10颗瓜子");
+                infoModal.style.display = "none";
+            }else{
+                alert("兑换码无效");
+            }
+        };
+
+        // 基础安全防护
+        document.addEventListener("contextmenu", e=>e.preventDefault());
+        if(window.self !== window.top) window.top.location.href = window.self.location.href;
+    </script>
+</body>
+</html>
