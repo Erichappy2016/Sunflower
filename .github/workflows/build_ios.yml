@@ -23,7 +23,7 @@ jobs:
           pod repo update
           pod install
 
-      - name: Xcode归档，三条关闭签名参数全部写上
+      - name: Xcode归档，关闭签名
         working-directory: ./ios/App
         run: |
           xcodebuild archive \
@@ -47,7 +47,3 @@ jobs:
         with:
           name: Sunflower安装包
           path: Sunflower.ipa
-ifact@v4
-        with:
-          name: iOS-Beta包
-          path: MyBeta.ipa
