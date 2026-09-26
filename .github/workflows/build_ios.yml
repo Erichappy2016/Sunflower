@@ -1,0 +1,51 @@
+name: Build iOS Capacitor Beta无签名IPA
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+
+      - name: 配置Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 安装npm依赖
+        run: npm install
+
+      - name: Capacitor同步iOS
+        run: npx cap sync ios
+
+      - name: CocoaPods安装
+        working-directory: ./ios/App
+        run: pod install
+
+      - name: Xcode归档打包（关闭签名）
+        working-directory: ./ios/App
+        run: |
+          xcodebuild archive \
+          -workspace App.xcworkspace \
+          -scheme App \
+          -sdk iphoneos \
+          -configuration Debug \
+          -archivePath ../../App.xcarchive \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY=""
+
+      - name: 组装IPA安装包
+        run: |
+          mkdir -p Payload
+          cp -R ./App.xcarchive/Products/Applications/*.app Payload/
+          zip -r MyBeta.ipa Payload
+
+      - name: 上传成品IPA，打包完下载
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-Beta包
+          path: MyBeta.ipa
